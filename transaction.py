@@ -1,6 +1,10 @@
-import base58
-import ecdsa
 import hashlib
+import pickle
+import secrets
+
+import base58
+import coincurve
+
 
 # TXOutput = namedtuple("TXOutput", ["value", "pub_key_hash"])
 # TXInput = namedtuple("TXInput", ["tx_id", "out_to", "script_sig", "pub_key"])
@@ -32,20 +36,20 @@ class TXInput:
         pass
 
 
-class TrasactionBase:
-    id_iterator = 0
+# class TrasactionBase:
+#     id_iterator = 0
+#
+#     def __init__(self):
+#         self.tx_id = TrasactionBase.id_iterator
+#         TrasactionBase.id_iterator += 1
+#         pass
 
-    def __init__(self):
-        self.tx_id = TrasactionBase.id_iterator
-        TrasactionBase.id_iterator += 1
-        pass
 
-
-class Coinbase(TrasactionBase):
+class Coinbase:
     subsidy = 1
 
     def __init__(self, to, data=""):
-        super().__init__()
+        self.tx_id = secrets.token_bytes(64)
         if data == "":
             data = "Reward to " + str(to)
         # self.tx_id = id
@@ -61,9 +65,9 @@ class Coinbase(TrasactionBase):
         return self.outputs[i].pub_key_hash == unlocking_data
 
 
-class Transaction(TrasactionBase):
+class Transaction:
     def __init__(self, inputs, outputs):
-        super().__init__()
+        self.tx_id = secrets.token_bytes(64)
         self.inputs = inputs
         self.outputs = outputs
 
@@ -83,14 +87,16 @@ class Transaction(TrasactionBase):
             tx_copy.inputs[self.inputs.index(i)].pub_key = None
 
             # TODO: r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)
-
-
-        pass
+            pk = coincurve.PrivateKey.from_hex(priv_key)
+            signature = pk.sign(tx_copy.tx_id)
+            i.signature = signature
 
     def hashhash(self):
-        # TODO:  сериализует транзакцию и хеширует ее с помощью алгоритма SHA-256.
+        #  сериализует транзакцию и хеширует ее с помощью алгоритма SHA-256.
         #  Результатом являются данные готовые для подписи.
-        pass
+        serialized = pickle.dumps(self)
+        hashed = hashlib.sha256(serialized).hexdigest().encode()
+        return hashed
 
     def trimmed_copy(self):
         ins = []
@@ -101,5 +107,18 @@ class Transaction(TrasactionBase):
             outs.append(TXOutput(out.value, out.pub_key_hash))
         tx_copy = Transaction(ins, outs)
         return tx_copy
+
+    def verify(self, prev_txs):
+        tx_copy = self.trimmed_copy()
+
+        for i in self.inputs:
+            prev_tx = prev_txs[i.tx_id]  # возможно, тут нужно что-нить hex() или encode()/decode()
+            tx_copy.inputs[self.inputs.index(i)].signature = None
+            tx_copy.inputs[self.inputs.index(i)].pub_key = prev_tx.outputs[i.vout].pub_key_hash
+            tx_copy.tx_id = tx_copy.hashhash()
+            tx_copy.inputs[self.inputs.index(i)] = None
+
+            #  verify
+
 
     pass

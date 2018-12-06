@@ -1,4 +1,5 @@
 import pickle
+
 from voteblockchain.block import Block
 from voteblockchain.transaction import Coinbase, Transaction, TXInput, TXOutput
 from voteblockchain.wallet import Wallet
@@ -41,19 +42,19 @@ class Blockchain:
             for j in i.transactions:  # по всем транзакцям в каждом блоке
                 tx_id = str(j.tx_id)
                 for out in range(len(j.outputs)):  # по всем выходам из каждой транзакции
-                    if j.can_be_unlocked_with(out, address):  # найти выходы, которые принадлежат >address<
-                        tx_id += "-" + str(out)
-                        unlockable_outputs[tx_id] = j.outputs[out]
-        # for key, value in unlockable_outputs.items():
-        #     print(key)
-        #     print(value)
+                    if "Coinbase" in str(type(j)):
+                        if j.can_be_unlocked_with(out, address):  # найти выходы, которые принадлежат >address<
+                            tx_id += "-" + str(out)
+                            unlockable_outputs[tx_id] = j.outputs[out]
+                    elif "Transaction" in str(type(j)):
+                        if j.outputs[out].is_locked_with_key(address):
+                            tx_id += "-" + str(out)
         out_keys = []
         tx_keys = []
         for key in unlockable_outputs.keys():  # составление списка идентификаторов для упрощения поиска ниже:
             k = key.split(sep="-")
             tx_keys.append(k[0])
             out_keys.append(k[-1])
-            # print(tx_keys, out_keys)
         for i in self.blocks:  # по всем блокам в блокчейне
             for j in i.transactions:  # по всем транзакциям в каждом блоке
                 for inp in j.inputs:  # по всем входам в каждой транзакции
@@ -73,12 +74,10 @@ class Blockchain:
 
     def new_transaction(self, from_, to_, amount):
         accumulated, spendable = self.find_spendable_outputs(from_, amount)
-        # to make inputs for new transaction:
         ins = []
         for i in spendable:
             tx_id, vout = i[0], i[1]  # в spendable список кортежей (id транзакции, номер выхода)
-            ins.append(TXInput(tx_id, vout, from_))  # TODO
-        # to make output:
+            ins.append(TXInput(tx_id, vout, from_, None))
         outs = []
         outs.append(TXOutput(amount, to_))
         if accumulated > amount:
@@ -129,24 +128,6 @@ class Blockchain:
 
 if __name__ == "__main__":
 
-    # bc = Blockchain("M")
-    #
-    # bc.add_block("M")
-    # bc.add_block("A")
-    # bc.add_block("X")
-    #
-    # for i in bc.blocks:
-    #     print("Prev. hash: " + str(i.prev_block_hash))
-    #     # print("Data: " + str(i.transactions))
-    #     print("Transactions: ")
-    #     for j in i.transactions:
-    #         print("----", j.tx_id)
-    #         print("----", j.inputs)
-    #         print("----", j.outputs)
-    #     print("Hash: " + str(i.hash))
-    #     print()
-    # bc.serialize()
-
     w1 = Wallet()
     address_1 = w1.generate_address()
     print("Address_1 = " + str(address_1) + "\n")
@@ -180,53 +161,3 @@ if __name__ == "__main__":
         print("Hash: " + str(i.hash))
         print()
     bc.serialize()
-
-    #
-    # bM = bc.get_balance("M")
-    # print("M Balance = " + str(bM) + "\n")
-    # # a, s = bc.find_spendable_outputs("M", 1)
-    # bc.send("M", "A", 1)
-    #
-    # for i in bc.blocks:
-    #     print("Prev. hash: " + str(i.prev_block_hash))
-    #     # print("Data: " + str(i.transactions))
-    #     print("Transactions: ")
-    #     for j in i.transactions:
-    #         print("----", j.tx_id)
-    #         print("----", j.inputs)
-    #         print("----", j.outputs)
-    #     print("Hash: " + str(i.hash))
-    #     print()
-    #
-    # bM = bc.get_balance("M")
-    # print("M Balance = " + str(bM) + "\n")
-    #
-    # bA = bc.get_balance("A")
-    # print("A Balance = " + str(bA) + "\n")
-    #
-    # bX = bc.get_balance("X")
-    # print("X Balance = " + str(bX) + "\n")
-    #
-    # bc.send("A", "M", 1)
-    # bc.send("A", "X", 1)
-    # bc.send("X", "A", 1)
-    #
-    # for i in bc.blocks:
-    #     print("Prev. hash: " + str(i.prev_block_hash))
-    #     # print("Data: " + str(i.transactions))
-    #     print("Transactions: ")
-    #     for j in i.transactions:
-    #         print("----", j.tx_id)
-    #         print("----", j.inputs)
-    #         print("----", j.outputs)
-    #     print("Hash: " + str(i.hash))
-    #     print()
-    #
-    # bM = bc.get_balance("M")
-    # print("M Balance = " + str(bM) + "\n")
-    #
-    # bA = bc.get_balance("A")
-    # print("A Balance = " + str(bA) + "\n")
-    #
-    # bX = bc.get_balance("X")
-    # print("X Balance = " + str(bX) + "\n")
