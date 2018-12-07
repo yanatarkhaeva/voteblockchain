@@ -1,5 +1,6 @@
 import pickle
 
+import voteblockchain.wallets as Ws
 from voteblockchain.block import Block
 from voteblockchain.transaction import Coinbase, Transaction, TXInput, TXOutput
 from voteblockchain.wallet import Wallet
@@ -12,7 +13,9 @@ class Blockchain:
         if mode == "New":
             self.blocks = []
             transs = []
-            transs.append(Coinbase(address))
+            c = Coinbase(address)
+            c.set_id()
+            transs.append(c)
             genesis_block = Block("", transs)
             genesis_block.set_hash()
             print(genesis_block.prev_block_hash)
@@ -23,7 +26,9 @@ class Blockchain:
 
     def add_block(self, address):
         transs = []
-        transs.append(Coinbase(address))
+        c = Coinbase(address)
+        c.set_id()
+        transs.append(c)
         prev_block = self.blocks[-1]
         new_block = Block(prev_block.hash, transs)
         new_block.set_hash()
@@ -31,9 +36,14 @@ class Blockchain:
 
     def mine_block(self):
         if len(self.tx_about_to_add) != 0:
-            block = Block(self.blocks[-1].hash, self.tx_about_to_add.copy())
-            block.set_hash()
-            self.blocks.append(block)
+            txxs = []
+            for tx in self.tx_about_to_add:
+                if self.verify_transaction(tx):
+                    txxs.append(tx)
+            if len(txxs) != 0:
+                block = Block(self.blocks[-1].hash, txxs)
+                block.set_hash()
+                self.blocks.append(block)
         self.tx_about_to_add.clear()
 
     def find_unspent(self, address):
@@ -75,14 +85,19 @@ class Blockchain:
     def new_transaction(self, from_, to_, amount):
         accumulated, spendable = self.find_spendable_outputs(from_, amount)
         ins = []
+        ws = Ws.deserialize()
+        wallet = ws.get_wallet(from_)
         for i in spendable:
             tx_id, vout = i[0], i[1]  # в spendable список кортежей (id транзакции, номер выхода)
-            ins.append(TXInput(tx_id, vout, from_, None))
+            ins.append(TXInput(tx_id, vout, from_, wallet.public))
         outs = []
         outs.append(TXOutput(amount, to_))
         if accumulated > amount:
             outs.append(TXOutput(accumulated - amount, from_))  # сдача, если набрали с баланса больше, чем надо
         tx = Transaction(ins, outs)
+        tx.set_id()
+        # tx.tx_id = tx.hashhash()
+        self.sing_transaction(tx, wallet.private)
         self.tx_about_to_add.append(tx)
         return tx
 
@@ -102,10 +117,9 @@ class Blockchain:
         return accumulated, spendable
 
     def send(self, from_, to_, amount):
-        try:
-            self.new_transaction(from_, to_, amount)
-        except Exception as e:
-            print(e)
+        self.new_transaction(from_, to_, amount)
+        # except Exception as e:
+        #     print(e)
         self.mine_block()
         print("Success!")
 
@@ -114,6 +128,32 @@ class Blockchain:
         w = Wallet()
         wallets.append(w)
         return w.generate_address()
+
+    def find_transaction(self, transaction):
+        for b in self.blocks:
+            for tx in b.transactions:
+                # print(str(tx.tx_id))
+                # print(transaction)
+                # print(str(tx.tx_id)[1:])
+                # print(transaction[2:-2])
+                if str(tx.tx_id) == transaction:
+                    return tx
+            # if len(b.prev_block_hash) == 0:
+            #     break
+
+    def sing_transaction(self, tx, privkey):
+        prev_txs = {}
+        for i in tx.inputs:
+            prev_tx = self.find_transaction(i.tx_id)
+            prev_txs[prev_tx.tx_id] = prev_tx
+        tx.sign(privkey, prev_txs)
+
+    def verify_transaction(self, tx):
+        prev_txs = {}
+        for i in tx.inputs:
+            prev_tx = self.find_transaction(i.tx_id)
+            prev_txs[prev_tx.tx_id] = prev_tx
+        return tx.verify(prev_txs)
 
     def serialize(self):
         with open("blockchain.txt", mode="wb") as f:
@@ -128,18 +168,24 @@ class Blockchain:
 
 if __name__ == "__main__":
 
-    w1 = Wallet()
-    address_1 = w1.generate_address()
-    print("Address_1 = " + str(address_1) + "\n")
-
-    w2 = Wallet()
-    address_2 = w2.generate_address()
-    print("Address_2 = " + str(address_2) + "\n")
-
+    # w1 = Wallet()
+    # address_1 = w1.generate_address()
+    # print("Address_1 = " + str(address_1) + "\n")
+    #
+    # w2 = Wallet()
+    # address_2 = w2.generate_address()
+    # print("Address_2 = " + str(address_2) + "\n")
+    ws = Ws.Wallets()
+    address_1 = ws.create_wallet()
+    # ws.wallets[0].generate_address()
+    ws.serialize()
     bc = Blockchain(address_1)
 
+    address_2 = ws.create_wallet()
+    print("Address_1 = " + str(address_1) + "\n")
+    print("Address_2 = " + str(address_2) + "\n")
     print("Balance 1: " + str(bc.get_balance(address_1)))
-
+    print("Balance 2: " + str(bc.get_balance(address_2)))
     bc.add_block(address_2)
 
     bc.send(address_1, address_2, 1)
@@ -147,8 +193,6 @@ if __name__ == "__main__":
     print("A1 balance: " + str(bc.get_balance(address_1)))
 
     print("A2 balance: " + str(bc.get_balance(address_2)))
-    # bc.add_block("A")
-    # bc.add_block("X")
 
     for i in bc.blocks:
         print("Prev. hash: " + str(i.prev_block_hash))

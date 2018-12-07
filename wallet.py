@@ -1,7 +1,7 @@
+import hashlib
+
 import base58
 import ecdsa
-import hashlib
-import struct
 
 
 class Wallet:
@@ -10,7 +10,7 @@ class Wallet:
 
     def new_key_pair(self):
         sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)  # private ключ
-        private_key = sk.to_string().hex()  # конвертим private ключ в hex
+        private_key = sk.to_string()  # конвертим private ключ в hex
         vk = sk.get_verifying_key()  # public ключ
         public_key = vk.to_string().hex()
         return private_key, public_key
