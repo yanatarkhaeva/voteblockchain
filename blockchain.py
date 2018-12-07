@@ -1,9 +1,10 @@
 import pickle
 
-import voteblockchain.wallets as Ws
-from voteblockchain.block import Block
-from voteblockchain.transaction import Coinbase, Transaction, TXInput, TXOutput
-from voteblockchain.wallet import Wallet
+import wallets as Ws
+from vote import Vote
+from block import Block
+from transaction import Coinbase, Transaction, TXInput, TXOutput
+from wallet import Wallet
 
 wallets = []
 
@@ -11,6 +12,7 @@ wallets = []
 class Blockchain:
     def __init__(self, address, mode="New"):
         if mode == "New":
+            self.votes = {}
             self.blocks = []
             transs = []
             c = Coinbase(address)
@@ -23,6 +25,24 @@ class Blockchain:
             self.tx_about_to_add = []
         else:
             self.deserialize()
+
+    def add_vote(self, name, text, vars):
+        self.votes[name] = Vote(name, text, vars)
+
+    def do_vote(self, from_, to_):
+        amount = 1
+        self.send(from_, to_, amount)
+
+    def end_vote(self, name):
+        results = {}
+        for name, wal in self.votes[name].vars.items():
+            results[name] = self.get_balance(wal)
+        winner = [0, None]  # [banace, name of vote]
+        for name, val in results.items():
+            if val > winner[0]:
+                winner[0] = val
+                winner[1] = name
+        return winner
 
     def add_block(self, address):
         transs = []
@@ -59,6 +79,7 @@ class Blockchain:
                     elif "Transaction" in str(type(j)):
                         if j.outputs[out].is_locked_with_key(address):
                             tx_id += "-" + str(out)
+                            unlockable_outputs[tx_id] = j.outputs[out]
         out_keys = []
         tx_keys = []
         for key in unlockable_outputs.keys():  # составление списка идентификаторов для упрощения поиска ниже:
@@ -185,10 +206,15 @@ if __name__ == "__main__":
     print("Address_1 = " + str(address_1) + "\n")
     print("Address_2 = " + str(address_2) + "\n")
     print("Balance 1: " + str(bc.get_balance(address_1)))
-    print("Balance 2: " + str(bc.get_balance(address_2)))
     bc.add_block(address_2)
+    print("Balance 2: " + str(bc.get_balance(address_2)))
+    address_3 = ws.create_wallet()
+    bc.add_block(address_3)
+    address_4 = ws.create_wallet()
+    bc.add_block(address_4)
+    bc.send(address_3, address_1, 1)
+    bc.send(address_4, address_1, 1)
 
-    bc.send(address_1, address_2, 1)
 
     print("A1 balance: " + str(bc.get_balance(address_1)))
 

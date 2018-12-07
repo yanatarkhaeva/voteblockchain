@@ -1,6 +1,6 @@
 import pickle
 
-from voteblockchain.wallet import Wallet
+from wallet import Wallet
 
 
 class Wallets:
@@ -12,6 +12,7 @@ class Wallets:
         address = w.generate_address()
         self.wallets[address] = w
         self.serialize()
+        print(address)
         return address
 
     def get_addresses(self):
@@ -19,6 +20,12 @@ class Wallets:
         for address in self.wallets.keys():
             addresses.append(address)
         return addresses
+
+    def get_wallet_by_pub_key(self, pub_key):
+        for w in self.wallets.values():
+            if w.public == pub_key:
+                print(w.generate_address())
+                return w.generate_address()
 
     def get_wallet(self, address):
         return self.wallets[address]

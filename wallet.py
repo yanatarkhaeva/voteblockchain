@@ -20,8 +20,8 @@ class Wallet:
         khash = self.hash_pub_key(self.public)
         checksum = self.hash_pub_key(khash.hexdigest())
         preaddress = "00" + khash.hexdigest() + checksum.hexdigest()
-        public_key = base58.b58encode(preaddress.encode())
-        return public_key
+        address = base58.b58encode(preaddress.encode())
+        return address
 
     def hash_pub_key(self, key):
         pubkey = key.encode()

@@ -1,5 +1,5 @@
 import time
-from voteblockchain.pow import ProofOfWork
+from pow import ProofOfWork
 
 
 class Block:

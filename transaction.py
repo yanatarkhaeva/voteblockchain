@@ -64,6 +64,83 @@ class Coinbase:
     def can_be_unlocked_with(self, i, unlocking_data):
         return self.outputs[i].pub_key_hash == unlocking_data
 
+    def sign(self, priv_key, prev_txs):
+        tx_copy = self.trimmed_copy()
+        for i in self.inputs:
+            for k in prev_txs.keys():
+                if str(k) == i.tx_id:
+                    prev_tx = prev_txs[k]
+            tx_copy.inputs[self.inputs.index(i)].signature = None
+            tx_copy.inputs[self.inputs.index(i)].pub_key = prev_tx.outputs[int(i.vout)].pub_key_hash
+            print("To sign raw: ")
+            print("----" + str(tx_copy.tx_id))
+            for ii in tx_copy.inputs:
+                print("----" + str(ii.pub_key))
+                print("----" + str(ii.tx_id))
+                print("----" + str(ii.vout))
+            for out in tx_copy.outputs:
+                print("====" + str(out.value))
+                print("====" + str(out.pub_key_hash))
+            tx_copy.tx_id = tx_copy.hashhash()
+            tx_copy.inputs[self.inputs.index(i)].pub_key = None
+            print("To sign: ", str(tx_copy.tx_id))
+            # TODO: r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)
+            # sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
+            # vk = sk.get_verifying_key()
+            sk = ecdsa.SigningKey.from_string(priv_key, curve=ecdsa.SECP256k1)
+            sig = sk.sign(tx_copy.tx_id)
+            print("Signature:  " + str(sig.hex()))
+            # pk = coincurve.PrivateKey.from_hex(priv_key)
+            # signature = pk.sign(tx_copy.tx_id)
+            i.signature = sig.hex()
+
+    def hashhash(self):
+        #  сериализует транзакцию и хеширует ее с помощью алгоритма SHA-256.
+        #  Результатом являются данные готовые для подписи.
+        serialized = pickle.dumps(self)
+        hashed = hashlib.sha256(serialized).hexdigest().encode()
+        return hashed
+
+    def trimmed_copy(self):
+        ins = []
+        outs = []
+        for inn in self.inputs:
+            ins.append(TXInput(inn.tx_id, inn.vout, None, None))
+        for out in self.outputs:
+            outs.append(TXOutput(out.value, out.pub_key_hash))
+        tx_copy = Transaction(ins, outs)
+        return tx_copy
+
+    def verify(self, prev_txs):
+        tx_copy = self.trimmed_copy()
+
+        for i in self.inputs:
+            for k in prev_txs.keys():
+                if str(k) == i.tx_id:
+                    prev_tx = prev_txs[k]
+            # prev_tx = prev_txs[i.tx_id]  # возможно, тут нужно что-нить hex() или encode()/decode()
+            tx_copy.inputs[self.inputs.index(i)].signature = None
+            tx_copy.inputs[self.inputs.index(i)].pub_key = prev_tx.outputs[int(i.vout)].pub_key_hash
+            print("To verify raw: ")
+            print("----" + str(tx_copy.tx_id))
+            for ii in tx_copy.inputs:
+                print("----" + str(ii.pub_key))
+                print("----" + str(ii.tx_id))
+                print("----" + str(ii.vout))
+            for out in tx_copy.outputs:
+                print("====" + str(out.value))
+                print("====" + str(out.pub_key_hash))
+            tx_copy.tx_id = tx_copy.hashhash()
+            tx_copy.inputs[self.inputs.index(i)].pub_key = None
+            print("To verify: " + str(tx_copy.tx_id))
+            print("Signature: " + str(i.signature))
+            vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(i.pub_key), curve=ecdsa.SECP256k1)
+            try:
+                vk.verify(bytes.fromhex(i.signature), tx_copy.tx_id)
+            except ecdsa.keys.BadSignatureError:
+                return False
+        return True
+
 
 class Transaction:
     def __init__(self, inputs, outputs):
